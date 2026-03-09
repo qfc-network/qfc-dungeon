@@ -1,0 +1,9 @@
+{
+  "contract": "DungeonLeaderboard",
+  "address": "0xE5e2956eEEfD3374A2C67640F429114e52639f4c",
+  "deployer": "0x5BE349d95787b0B4135CC4CfEe27AD70AC9F3132",
+  "chainId": 9000,
+  "network": "qfc-testnet",
+  "txHash": "0x0b06bca22808e292029ad288998a6b04a1a45d3942566403799f830cd56395f6",
+  "timestamp": "2026-03-09T19:45:16.254Z"
+}

@@ -68,4 +68,7 @@ export interface LeaderboardEntry {
   turns: number;
   level: number;
   date: string;
+  wallet?: string | null;
+  txHash?: string | null;
+  onChain?: boolean;
 }

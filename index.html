@@ -137,12 +137,21 @@
 <body>
   <div id="start-screen">
     <div class="screen-title">QFC AI Dungeon</div>
-    <div class="screen-subtitle">A roguelike dungeon crawler</div>
+    <div class="screen-subtitle">A roguelike dungeon crawler on QFC Chain</div>
+    <div id="chain-status" style="margin-bottom:16px;font-size:12px;color:#54a0ff;">
+      ⛓️ QFC Testnet · Block <span id="chain-block">...</span>
+    </div>
+    <div id="wallet-section" style="margin-bottom:16px;text-align:center;">
+      <button class="btn" id="btn-connect-wallet" style="background:#2a4a2a;border-color:#4a8a4a;font-size:13px;padding:8px 20px;">🔗 Connect Wallet</button>
+      <div id="wallet-info" class="hidden" style="margin-top:8px;font-size:12px;color:#6e6;">
+        ✅ <span id="wallet-addr"></span> · <span id="wallet-bal"></span> QFC
+      </div>
+    </div>
     <button class="btn" id="btn-start">Enter the Dungeon</button>
     <div id="leaderboard">
       <h3 style="color:#8888cc;margin-bottom:8px;">Leaderboard</h3>
       <table>
-        <thead><tr><th>#</th><th>Score</th><th>Floor</th><th>Turns</th></tr></thead>
+        <thead><tr><th>#</th><th>Score</th><th>Floor</th><th>Turns</th><th>⛓️</th></tr></thead>
         <tbody id="leaderboard-body"></tbody>
       </table>
     </div>
@@ -151,12 +160,24 @@
   <div id="death-screen" class="hidden">
     <div class="screen-title" style="color:#e44;">You Died</div>
     <div class="screen-subtitle" id="death-info"></div>
+    <div id="chain-submit" class="hidden" style="margin:12px 0;">
+      <button class="btn" id="btn-submit-chain" style="background:#2a2a5a;border-color:#5a5aaa;font-size:13px;">
+        ⛓️ Submit Score On-Chain
+      </button>
+      <div id="chain-submit-status" style="margin-top:8px;font-size:12px;"></div>
+    </div>
     <button class="btn" id="btn-restart">Try Again</button>
   </div>
 
   <div id="victory-screen" class="hidden">
     <div class="screen-title" style="color:#6e6;">Victory!</div>
     <div class="screen-subtitle" id="victory-info"></div>
+    <div id="chain-submit-victory" class="hidden" style="margin:12px 0;">
+      <button class="btn" id="btn-submit-chain-victory" style="background:#2a2a5a;border-color:#5a5aaa;font-size:13px;">
+        ⛓️ Submit Score On-Chain
+      </button>
+      <div id="chain-submit-victory-status" style="margin-top:8px;font-size:12px;"></div>
+    </div>
     <button class="btn" id="btn-victory-restart">Play Again</button>
   </div>
 

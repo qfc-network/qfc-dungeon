@@ -81,7 +81,7 @@ app.get("/api/leaderboard", (_req, res) => {
   res.json(loadLeaderboard());
 });
 
-function addToLeaderboard(state: GameState): void {
+function addToLeaderboard(state: GameState, walletAddress?: string, txHash?: string): void {
   const entries = loadLeaderboard();
   entries.push({
     score: state.score,
@@ -89,10 +89,45 @@ function addToLeaderboard(state: GameState): void {
     turns: state.turns,
     level: state.player.level,
     date: new Date().toISOString(),
+    wallet: walletAddress || null,
+    txHash: txHash || null,
+    onChain: !!txHash,
   });
   entries.sort((a, b) => b.score - a.score);
   saveLeaderboard(entries.slice(0, 20));
 }
+
+// Chain info endpoint
+app.get("/api/chain", async (_req, res) => {
+  try {
+    const response = await fetch("https://rpc.testnet.qfc.network", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "eth_blockNumber", id: 1 }),
+    });
+    const data = await response.json() as any;
+    res.json({
+      chainId: 9000,
+      blockNumber: parseInt(data.result, 16),
+      rpc: "https://rpc.testnet.qfc.network",
+      leaderboardContract: "0xE5e2956eEEfD3374A2C67640F429114e52639f4c",
+    });
+  } catch {
+    res.json({ chainId: 9000, blockNumber: 0, error: "RPC unavailable" });
+  }
+});
+
+// Submit run with optional chain proof
+app.post("/api/submit-run", (req, res) => {
+  const { gameId, walletAddress, txHash } = req.body;
+  const state = games.get(gameId);
+  if (!state) return res.status(404).json({ error: "Game not found" });
+  if (state.status !== "dead" && state.status !== "victory") {
+    return res.status(400).json({ error: "Game still in progress" });
+  }
+  addToLeaderboard(state, walletAddress, txHash);
+  res.json({ success: true, onChain: !!txHash });
+});
 
 // SPA fallback
 app.get("*", (_req, res) => {

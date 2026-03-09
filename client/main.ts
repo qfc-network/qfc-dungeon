@@ -3,11 +3,17 @@ import { newGame, move, useItem, getLeaderboard } from "./api";
 import { Renderer, MinimapRenderer } from "./Renderer";
 import { Sidebar } from "./Sidebar";
 import { Input } from "./Input";
+import {
+  connectWallet as chainConnectWallet,
+  connectWithKey,
+  getWalletState,
+  getChainInfo,
+  getChainSeed,
+  submitRunOnChain,
+} from "./chain";
 
 let state: GameState | null = null;
 let busy = false;
-let walletAddress: string | null = null;
-let walletSigner: any = null;
 
 const canvas = document.getElementById("game-canvas") as HTMLCanvasElement;
 const minimapCanvas = document.getElementById("minimap-canvas") as HTMLCanvasElement;
@@ -87,7 +93,7 @@ function checkGameEnd(): void {
     const info = document.getElementById("death-info")!;
     info.textContent = `Floor ${state.floor} | Score: ${state.score} | Level ${state.player.level}`;
     deathScreen.classList.remove("hidden");
-    if (walletAddress) {
+    if (getWalletState().connected) {
       document.getElementById("chain-submit")?.classList.remove("hidden");
     }
     loadLeaderboard();
@@ -95,7 +101,7 @@ function checkGameEnd(): void {
     const info = document.getElementById("victory-info")!;
     info.textContent = `Score: ${state.score} | Level ${state.player.level} | ${state.turns} turns`;
     victoryScreen.classList.remove("hidden");
-    if (walletAddress) {
+    if (getWalletState().connected) {
       document.getElementById("chain-submit-victory")?.classList.remove("hidden");
     }
     loadLeaderboard();
@@ -119,110 +125,72 @@ async function loadLeaderboard(): Promise<void> {
 // Chain integration
 async function loadChainInfo(): Promise<void> {
   try {
-    const res = await fetch("/api/chain");
-    const data = await res.json();
+    const info = await getChainInfo();
     const el = document.getElementById("chain-block");
-    if (el) el.textContent = `#${data.blockNumber}`;
+    if (el) el.textContent = `#${info.blockNumber}`;
   } catch {}
 }
 
 async function connectWallet(): Promise<void> {
   const statusEl = document.getElementById("wallet-info")!;
   const btnEl = document.getElementById("btn-connect-wallet")!;
-  
+
   try {
     if (typeof (window as any).ethereum !== "undefined") {
-      // MetaMask path
-      const { ethers } = await import("ethers");
-      const ethereum = (window as any).ethereum;
-      await ethereum.request({ method: "eth_requestAccounts" });
-      
-      try {
-        await ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x2328" }],
-        });
-      } catch (switchErr: any) {
-        if (switchErr.code === 4902) {
-          await ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [{
-              chainId: "0x2328",
-              chainName: "QFC Testnet",
-              rpcUrls: ["https://rpc.testnet.qfc.network"],
-              nativeCurrency: { name: "QFC", symbol: "QFC", decimals: 18 },
-            }],
-          });
-        }
-      }
-      
-      const provider = new ethers.BrowserProvider(ethereum);
-      walletSigner = await provider.getSigner();
-      walletAddress = await walletSigner.getAddress();
-      const balance = ethers.formatEther(await provider.getBalance(walletAddress));
-      
-      document.getElementById("wallet-addr")!.textContent = walletAddress.slice(0, 6) + "..." + walletAddress.slice(-4);
-      document.getElementById("wallet-bal")!.textContent = parseFloat(balance).toFixed(2);
-      statusEl.classList.remove("hidden");
-      btnEl.textContent = "✅ Connected";
-      btnEl.style.background = "#1a3a1a";
+      await chainConnectWallet();
     } else {
-      // No MetaMask — prompt for private key (testnet only)
       const key = prompt("No MetaMask detected.\nEnter testnet private key (0x...):");
       if (!key) return;
-      
-      const { ethers } = await import("ethers");
-      const provider = new ethers.JsonRpcProvider("https://rpc.testnet.qfc.network");
-      const wallet = new ethers.Wallet(key, provider);
-      walletSigner = wallet;
-      walletAddress = wallet.address;
-      const balance = ethers.formatEther(await provider.getBalance(walletAddress));
-      
-      document.getElementById("wallet-addr")!.textContent = walletAddress.slice(0, 6) + "..." + walletAddress.slice(-4);
-      document.getElementById("wallet-bal")!.textContent = parseFloat(balance).toFixed(2);
-      statusEl.classList.remove("hidden");
-      btnEl.textContent = "✅ Connected";
-      btnEl.style.background = "#1a3a1a";
+      await connectWithKey(key);
     }
+
+    const ws = getWalletState();
+    if (!ws.connected || !ws.address) return;
+
+    document.getElementById("wallet-addr")!.textContent =
+      ws.address.slice(0, 6) + "..." + ws.address.slice(-4);
+    document.getElementById("wallet-bal")!.textContent =
+      parseFloat(ws.balance || "0").toFixed(2);
+    statusEl.classList.remove("hidden");
+    btnEl.textContent = "✅ Connected";
+    btnEl.style.background = "#1a3a1a";
   } catch (err: any) {
     alert("Wallet connection failed: " + (err.message || err));
   }
 }
 
 async function submitOnChain(statusElId: string): Promise<void> {
-  if (!state || !walletSigner || !walletAddress) return;
-  
+  const ws = getWalletState();
+  if (!state || !ws.connected || !ws.address) return;
+
   const statusEl = document.getElementById(statusElId)!;
   statusEl.textContent = "⏳ Submitting to QFC chain...";
   statusEl.style.color = "#ffa500";
-  
+
   try {
-    const { ethers } = await import("ethers");
-    const LEADERBOARD = "0xE5e2956eEEfD3374A2C67640F429114e52639f4c";
-    const ABI = ["function submitRun(uint256 score, uint8 floor, uint16 turns, uint256 seed) external"];
-    
-    const contract = new ethers.Contract(LEADERBOARD, ABI, walletSigner);
-    const seed = Date.now(); // Use timestamp as seed for now
-    
-    const tx = await contract.submitRun(state.score, state.floor, state.turns, seed);
-    statusEl.textContent = `⏳ TX sent: ${tx.hash.slice(0, 10)}... waiting...`;
-    
-    const receipt = await tx.wait();
-    statusEl.textContent = `✅ On-chain! Block #${receipt.blockNumber} | TX: ${receipt.hash.slice(0, 14)}...`;
-    statusEl.style.color = "#6e6";
-    
-    // Also submit to server with chain proof
-    await fetch("/api/submit-run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        gameId: state.id,
-        walletAddress,
-        txHash: receipt.hash,
-      }),
-    });
-    
-    loadLeaderboard();
+    const seed = await getChainSeed();
+    const result = await submitRunOnChain(state.score, state.floor, state.turns, seed);
+
+    if (result.success) {
+      statusEl.textContent = `✅ On-chain! TX: ${result.txHash.slice(0, 14)}...`;
+      statusEl.style.color = "#6e6";
+
+      // Also submit to server with chain proof
+      await fetch("/api/submit-run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gameId: state.id,
+          walletAddress: ws.address,
+          txHash: result.txHash,
+        }),
+      });
+
+      loadLeaderboard();
+    } else {
+      statusEl.textContent = "❌ Transaction failed on-chain";
+      statusEl.style.color = "#e44";
+    }
   } catch (err: any) {
     statusEl.textContent = `❌ Failed: ${err.message?.slice(0, 60) || "Unknown error"}`;
     statusEl.style.color = "#e44";

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QFC AI Dungeon</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    #app {
+      display: flex;
+      gap: 16px;
+      max-width: 1100px;
+    }
+    #game-canvas {
+      border: 2px solid #333;
+      cursor: pointer;
+      image-rendering: pixelated;
+    }
+    #sidebar {
+      width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .panel {
+      background: #151520;
+      border: 1px solid #2a2a3a;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .panel h3 {
+      color: #8888cc;
+      margin-bottom: 6px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .stat-row { display: flex; justify-content: space-between; margin: 2px 0; }
+    .stat-label { color: #888; }
+    .stat-value { color: #fff; font-weight: bold; }
+    .hp-bar, .xp-bar {
+      height: 8px;
+      background: #222;
+      border-radius: 4px;
+      margin: 4px 0;
+      overflow: hidden;
+    }
+    .hp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #e44, #f66);
+      transition: width 0.3s;
+    }
+    .xp-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #44e, #66f);
+      transition: width 0.3s;
+    }
+    #inventory-list { list-style: none; }
+    #inventory-list li {
+      padding: 3px 4px;
+      cursor: pointer;
+      border-radius: 3px;
+      display: flex;
+      justify-content: space-between;
+    }
+    #inventory-list li:hover { background: #2a2a3a; }
+    #equipment-list { list-style: none; }
+    #equipment-list li { padding: 2px 0; }
+    #log {
+      max-height: 180px;
+      overflow-y: auto;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    #log p { margin: 1px 0; padding: 1px 0; border-bottom: 1px solid #1a1a2a; }
+    .log-damage { color: #e66; }
+    .log-heal { color: #6e6; }
+    .log-item { color: #ee6; }
+    .log-info { color: #88c; }
+    .log-level { color: #e6e; }
+    #minimap-canvas { border: 1px solid #333; }
+    #start-screen, #death-screen, #victory-screen {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .screen-title {
+      font-size: 36px;
+      margin-bottom: 16px;
+    }
+    .screen-subtitle {
+      font-size: 16px;
+      color: #888;
+      margin-bottom: 24px;
+    }
+    .btn {
+      background: #3a3a5a;
+      color: #fff;
+      border: 1px solid #5a5a8a;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      border-radius: 6px;
+      margin: 4px;
+    }
+    .btn:hover { background: #4a4a7a; }
+    #leaderboard {
+      margin-top: 20px;
+      text-align: left;
+      width: 320px;
+    }
+    #leaderboard table { width: 100%; border-collapse: collapse; }
+    #leaderboard th, #leaderboard td { padding: 4px 8px; border-bottom: 1px solid #2a2a3a; }
+    #leaderboard th { color: #8888cc; text-align: left; }
+    .hidden { display: none !important; }
+    #buffs-list { list-style: none; font-size: 11px; }
+    #buffs-list li { color: #cc6; }
+  </style>
+</head>
+<body>
+  <div id="start-screen">
+    <div class="screen-title">QFC AI Dungeon</div>
+    <div class="screen-subtitle">A roguelike dungeon crawler</div>
+    <button class="btn" id="btn-start">Enter the Dungeon</button>
+    <div id="leaderboard">
+      <h3 style="color:#8888cc;margin-bottom:8px;">Leaderboard</h3>
+      <table>
+        <thead><tr><th>#</th><th>Score</th><th>Floor</th><th>Turns</th></tr></thead>
+        <tbody id="leaderboard-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="death-screen" class="hidden">
+    <div class="screen-title" style="color:#e44;">You Died</div>
+    <div class="screen-subtitle" id="death-info"></div>
+    <button class="btn" id="btn-restart">Try Again</button>
+  </div>
+
+  <div id="victory-screen" class="hidden">
+    <div class="screen-title" style="color:#6e6;">Victory!</div>
+    <div class="screen-subtitle" id="victory-info"></div>
+    <button class="btn" id="btn-victory-restart">Play Again</button>
+  </div>
+
+  <div id="app">
+    <canvas id="game-canvas" width="600" height="600"></canvas>
+    <div id="sidebar">
+      <div class="panel">
+        <h3>Player</h3>
+        <div class="stat-row"><span class="stat-label">Floor</span><span class="stat-value" id="stat-floor">1</span></div>
+        <div class="stat-row"><span class="stat-label">Level</span><span class="stat-value" id="stat-level">1</span></div>
+        <div class="stat-row"><span class="stat-label">HP</span><span class="stat-value" id="stat-hp">100/100</span></div>
+        <div class="hp-bar"><div class="hp-bar-fill" id="hp-bar" style="width:100%"></div></div>
+        <div class="stat-row"><span class="stat-label">XP</span><span class="stat-value" id="stat-xp">0/20</span></div>
+        <div class="xp-bar"><div class="xp-bar-fill" id="xp-bar" style="width:0%"></div></div>
+        <div class="stat-row"><span class="stat-label">ATK</span><span class="stat-value" id="stat-atk">10</span></div>
+        <div class="stat-row"><span class="stat-label">DEF</span><span class="stat-value" id="stat-def">5</span></div>
+        <div class="stat-row"><span class="stat-label">Score</span><span class="stat-value" id="stat-score">0</span></div>
+        <div class="stat-row"><span class="stat-label">Turns</span><span class="stat-value" id="stat-turns">0</span></div>
+      </div>
+      <div class="panel">
+        <h3>Buffs</h3>
+        <ul id="buffs-list"></ul>
+      </div>
+      <div class="panel">
+        <h3>Equipment</h3>
+        <ul id="equipment-list">
+          <li>Weapon: <span id="eq-weapon">None</span></li>
+          <li>Armor: <span id="eq-armor">None</span></li>
+          <li>Ring: <span id="eq-ring">None</span></li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>Inventory (<span id="inv-count">0</span>/6)</h3>
+        <ul id="inventory-list"></ul>
+      </div>
+      <div class="panel">
+        <h3>Minimap</h3>
+        <canvas id="minimap-canvas" width="150" height="150"></canvas>
+      </div>
+      <div class="panel">
+        <h3>Log</h3>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/client/main.ts"></script>
+</body>
+</html>

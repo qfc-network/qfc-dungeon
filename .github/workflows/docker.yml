@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch @qfc/chain-sdk
+        run: |
+          git clone --depth 1 https://github.com/qfc-network/qfc-chain-sdk.git qfc-chain-sdk
+          sed -i 's|"file:../qfc-chain-sdk"|"file:./qfc-chain-sdk"|' package.json
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 

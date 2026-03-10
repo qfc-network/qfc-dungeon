@@ -10,6 +10,7 @@ import {
   getChainInfo,
   getChainSeed,
   submitRunOnChain,
+  initChainUI,
 } from "./chain";
 
 let state: GameState | null = null;
@@ -37,12 +38,12 @@ const victoryScreen = document.getElementById("victory-screen")!;
 document.getElementById("btn-start")!.addEventListener("click", startGame);
 document.getElementById("btn-restart")!.addEventListener("click", startGame);
 document.getElementById("btn-victory-restart")!.addEventListener("click", startGame);
-document.getElementById("btn-connect-wallet")?.addEventListener("click", connectWallet);
+// Wallet connect handled by initChainUI()
 document.getElementById("btn-submit-chain")?.addEventListener("click", () => submitOnChain("chain-submit-status"));
 document.getElementById("btn-submit-chain-victory")?.addEventListener("click", () => submitOnChain("chain-submit-victory-status"));
 
 // Load chain info + leaderboard on start
-loadChainInfo();
+initChainUI();
 loadLeaderboard();
 
 async function startGame(): Promise<void> {
@@ -122,42 +123,7 @@ async function loadLeaderboard(): Promise<void> {
   } catch {}
 }
 
-// Chain integration
-async function loadChainInfo(): Promise<void> {
-  try {
-    const info = await getChainInfo();
-    const el = document.getElementById("chain-block");
-    if (el) el.textContent = `#${info.blockNumber}`;
-  } catch {}
-}
-
-async function connectWallet(): Promise<void> {
-  const statusEl = document.getElementById("wallet-info")!;
-  const btnEl = document.getElementById("btn-connect-wallet")!;
-
-  try {
-    if (typeof (window as any).ethereum !== "undefined") {
-      await chainConnectWallet();
-    } else {
-      const key = prompt("No MetaMask detected.\nEnter testnet private key (0x...):");
-      if (!key) return;
-      await connectWithKey(key);
-    }
-
-    const ws = getWalletState();
-    if (!ws.connected || !ws.address) return;
-
-    document.getElementById("wallet-addr")!.textContent =
-      ws.address.slice(0, 6) + "..." + ws.address.slice(-4);
-    document.getElementById("wallet-bal")!.textContent =
-      parseFloat(ws.balance || "0").toFixed(2);
-    statusEl.classList.remove("hidden");
-    btnEl.textContent = "✅ Connected";
-    btnEl.style.background = "#1a3a1a";
-  } catch (err: any) {
-    alert("Wallet connection failed: " + (err.message || err));
-  }
-}
+// Chain wallet connect handled by initChainUI() from @qfc/chain-sdk
 
 async function submitOnChain(statusElId: string): Promise<void> {
   const ws = getWalletState();

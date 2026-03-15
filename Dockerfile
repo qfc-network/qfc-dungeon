@@ -15,6 +15,6 @@ COPY --from=builder /app/contracts/deployment.json ./contracts/deployment.json
 COPY qfc-chain-sdk/ ./qfc-chain-sdk/
 RUN cd qfc-chain-sdk && npm install && npm run build
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 EXPOSE 3240
 CMD ["npx", "tsx", "server/index.ts"]
